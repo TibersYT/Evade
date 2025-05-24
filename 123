@@ -1,1 +1,94 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
 
+local player = Players.LocalPlayer
+
+-- Создаем ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CarryToggleGui"
+screenGui.Parent = CoreGui  -- Внимание! Добавляем в CoreGui
+
+-- Создаем кнопку
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(0, 120, 0, 50)
+button.Position = UDim2.new(0, 20, 0, 20)
+button.BackgroundColor3 = Color3.fromRGB(59, 59, 59)
+button.TextColor3 = Color3.new(1, 1, 1)
+button.Font = Enum.Font.SourceSansBold
+button.TextSize = 24
+button.Text = "Carry: Вкл"
+button.Parent = screenGui
+
+local isRunning = false
+
+local function carryAll()
+    for _, targetPlayer in pairs(Players:GetPlayers()) do
+        local args = {
+            [1] = "Carry",
+            [3] = targetPlayer.Name
+        }
+        ReplicatedStorage.Events.Character.Interact:FireServer(unpack(args))
+    end
+end
+
+button.MouseButton1Click:Connect(function()
+    if not isRunning then
+        isRunning = true
+        button.Text = "Carry: Выкл"
+
+        spawn(function()
+            while isRunning do
+                carryAll()
+                wait(1)
+            end
+        end)
+    else
+        isRunning = false
+        button.Text = "Carry: Вкл"
+    end
+end)
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ReviveToggleGui"
+screenGui.Parent = CoreGui -- ВАЖНО: Может НЕ работать без специальных прав
+
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(0, 120, 0, 50)
+button.Position = UDim2.new(0, 20, 0, 80)
+button.BackgroundColor3 = Color3.fromRGB(59, 59, 59)
+button.TextColor3 = Color3.new(1, 1, 1)
+button.Font = Enum.Font.SourceSansBold
+button.TextSize = 24
+button.Text = "Revive: Вкл"
+button.Parent = screenGui
+
+local isRunning = false
+
+local function reviveHum()
+    local args = {
+        [1] = "Revive",
+        [2] = true,
+    }
+    ReplicatedStorage.Events.Character.Interact:FireServer(unpack(args))
+end
+
+button.MouseButton1Click:Connect(function()
+    if not isRunning then
+        isRunning = true
+        button.Text = "Revive: Выкл"
+
+        spawn(function()
+            while isRunning do
+                reviveHum()
+                wait(0.1)
+            end
+        end)
+    else
+        isRunning = false
+        button.Text = "Revive: Вкл"
+    end
+end)
