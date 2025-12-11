@@ -16,7 +16,6 @@ local billboardGuis = {}
 
 -- Функция создания оболочки (Highlight)
 local function createHighlight(character)
-    -- В Roblox есть объект Highlight для выделения
     local highlight = Instance.new("Highlight")
     highlight.Adornee = character
     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -64,7 +63,19 @@ local function updateBillboardInfo(textLabel, player)
         return
     end
 
-    local distance = (head.Position - localPlayer.Character.Head.Position).Magnitude
+    -- Проверяем, существует ли Character у локального игрока
+    if not localPlayer.Character then
+        textLabel.Text = player.Name
+        return
+    end
+    
+    local localHead = localPlayer.Character:FindFirstChild("Head")
+    if not localHead then
+        textLabel.Text = player.Name
+        return
+    end
+
+    local distance = (head.Position - localHead.Position).Magnitude
     distance = math.floor(distance)
 
     local revivesFolder = player.Character:FindFirstChild("Revives")
@@ -77,6 +88,158 @@ local function updateBillboardInfo(textLabel, player)
         textLabel.TextColor3 = Color3.new(1,1,1)
     end
 
+    textLabel.Text = string.format("%s | %d studs%s", player.Name, distance, extraText)
+end
+
+-- Обновляем цвет Highlight в зависимости от наличия Revives
+local function updateHighlightColor(highlight, character)
+    if character:FindFirstChild("Revives") then
+        highlight.FillColor = REVIVES_COLOR
+        highlight.OutlineColor = REVIVES_COLOR
+    else
+        highlight.FillColor = DEFAULT_COLOR
+        highlight.OutlineColor = DEFAULT_COLOR
+    end
+end
+
+-- Основная функция настроек выделения игрока
+local function setupPlayerHighlight(player)
+    -- НЕ выделяем локального игрока
+    if player == localPlayer then return end
+    
+    if not player.Character then return end
+
+    local character = player.Character
+    
+    -- Удаляем старые выделения если есть
+    if highlights[player] then
+        highlights[player]:Destroy()
+        highlights[player] = nil
+    end
+    if billboardGuis[player] then
+        if billboardGuis[player].Parent then
+            billboardGuis[player]:Destroy()
+        end
+        billboardGuis[player] = nil
+    end
+
+    -- Создаём Highlight
+    local highlight = createHighlight(character)
+    highlights[player] = highlight
+
+    -- Создаем BillboardGui
+    local billboardGui, textLabel = createBillboardGui(character, player)
+    if billboardGui then
+        billboardGuis[player] = billboardGui
+    end
+
+    -- Следим за появлением/удалением папки Revives
+    local function onRevivesChanged()
+        updateHighlightColor(highlight, character)
+    end
+    
+    -- Подписываемся на изменения детей в character
+    local revivesConnection
+    revivesConnection = character.ChildAdded:Connect(function(child)
+        if child.Name == "Revives" then
+            onRevivesChanged()
+        end
+    end)
+    
+    local revivesRemovedConnection
+    revivesRemovedConnection = character.ChildRemoved:Connect(function(child)
+        if child.Name == "Revives" then
+            onRevivesChanged()
+        end
+    end)
+
+    -- Сохраняем подписки чтобы потом отключать если надо
+    highlight:GetPropertyChangedSignal("Parent"):Connect(function()
+        if not highlight.Parent then
+            revivesConnection:Disconnect()
+            revivesRemovedConnection:Disconnect()
+        end
+    end)
+
+    -- Изначально выставляем цвет
+    updateHighlightColor(highlight, character)
+end
+
+-- При респавне игрока переставляем выделение
+local function onCharacterAdded(player, character)
+    -- Используем небольшую задержку чтобы убедиться, что все части прогрузились
+    wait(0.5)
+    setupPlayerHighlight(player)
+end
+
+-- Обработка игрока
+local function onPlayerAdded(player)
+    -- Пропускаем локального игрока
+    if player == localPlayer then return end
+    
+    -- Если персонаж уже есть (редко, но на всякий)
+    if player.Character then
+        onCharacterAdded(player, player.Character)
+    end
+
+    player.CharacterAdded:Connect(function(character)
+        onCharacterAdded(player, character)
+    end)
+    
+    -- Очищаем выделение при выходе игрока
+    player:GetPropertyChangedSignal("Parent"):Connect(function()
+        if player.Parent == nil then
+            if highlights[player] then
+                highlights[player]:Destroy()
+                highlights[player] = nil
+            end
+            if billboardGuis[player] then
+                billboardGuis[player]:Destroy()
+                billboardGuis[player] = nil
+            end
+        end
+    end)
+end
+
+-- Переключение видимости Имени/Дистанции и обновление
+RunService.RenderStepped:Connect(function()
+    if not localPlayer.Character or not localPlayer.Character:FindFirstChild("Head") then
+        return
+    end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        -- Пропускаем локального игрока
+        if player == localPlayer then continue end
+        
+        if player.Character and billboardGuis[player] then
+            local textLabel = billboardGuis[player]:FindFirstChild("InfoLabel")
+            if textLabel then
+                -- Обновляем дистанцию и надпись
+                updateBillboardInfo(textLabel, player)
+            end
+        end
+    end
+end)
+
+-- Инициализируем для всех существующих игроков (кроме локального)
+for _, player in ipairs(Players:GetPlayers()) do
+    onPlayerAdded(player)
+end
+
+-- Подписываемся на новых игроков
+Players.PlayerAdded:Connect(onPlayerAdded)
+
+-- Очищаем выделения при выходе игрока
+Players.PlayerRemoving:Connect(function(player)
+    if highlights[player] then
+        highlights[player]:Destroy()
+        highlights[player] = nil
+    end
+    if billboardGuis[player] then
+        billboardGuis[player]:Destroy()
+        billboardGuis[player] = nil
+    end
+end)
     textLabel.Text = string.format("%s | %d studs%s", player.Name, distance, extraText)
 end
 
